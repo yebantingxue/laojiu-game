@@ -256,6 +256,7 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
     <button class="btn btn-outline" id="btn-continue">继续攀登</button>
     <button class="btn btn-outline" id="btn-ach-wall" style="font-size:14px;padding:8px 20px">🏆 成就墙</button>
     <button class="btn btn-outline" id="btn-leaderboard" style="font-size:14px;padding:8px 20px">🏅 排行榜</button>
+    <button class="btn btn-outline" id="btn-global-lb" style="font-size:14px;padding:8px 20px">🏆 全球排行</button>
     <button class="btn btn-outline" id="btn-data-mgmt" style="font-size:14px;padding:8px 20px">⚙️ 数据管理</button>
     <button class="btn btn-outline" id="btn-feedback-stats" style="font-size:14px;padding:8px 20px">📊 题库反馈</button>
     <div class="title-player">
@@ -403,6 +404,18 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
     <div style="height:16px"></div>
   </div>
   <input type="file" id="file-import-input" accept=".json" style="display:none">
+  <!-- Global Leaderboard Modal -->
+  <div id="leaderboard-modal" class="modal hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center">
+    <div style="background:#FDF5E6;border-radius:16px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);border:2px solid #d4c5a9">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 8px;border-bottom:2px solid #eee">
+        <h2 style="font-size:20px;color:#5D4037;margin:0">🏆 全球排行榜</h2>
+        <button onclick="document.getElementById('leaderboard-modal').style.display='none'" style="background:none;border:none;font-size:24px;cursor:pointer;color:#8B7355;padding:0 4px">&times;</button>
+      </div>
+      <div id="leaderboard-list" style="padding:16px">
+        <div style="text-align:center;color:#999">加载中...</div>
+      </div>
+    </div>
+  </div>
 </div>
 <script>
 // ============================================================
@@ -4381,6 +4394,7 @@ function endGame(won){
   saveData.totalWrong=(saveData.totalWrong||0)+wrongCount;
   if(maxCombo>(saveData.maxComboAll||0)) saveData.maxComboAll=maxCombo;
   save();
+  if(won) updateLeaderboard();
   // Check achievements
   const newAchs=checkAchievements();
   const endTitle=document.getElementById('end-title');
@@ -5375,6 +5389,7 @@ document.getElementById('title-player-new').onkeydown=function(e){
 
 // ===== Leaderboard Event Listeners =====
 document.getElementById('btn-leaderboard').onclick=()=>renderLeaderboard();
+document.getElementById('btn-global-lb').onclick=()=>showLeaderboard();
 document.getElementById('btn-back-lb').onclick=()=>renderTitle();
 document.getElementById('lb-player-select').onchange=function(){const v=this.value;const active=getActivePlayer();if(v!==active){loginPlayer(v).then(ok=>{if(ok){renderLeaderboardTable();}else{document.getElementById('lb-player-select').value=active;}});}};
 document.getElementById('btn-lb-add-player').onclick=function(){
@@ -5891,6 +5906,96 @@ function showNetworkToast(msg) {
   document.body.appendChild(t);
   setTimeout(() => { if (t.parentNode) t.parentNode.removeChild(t); }, 3000);
 }
+
+
+// ============ GLOBAL LEADERBOARD (Supabase) ============
+async function updateLeaderboard() {
+  const sb = getSupabase();
+  if (!sb || !_cloudUserId) return;
+  
+  // 计算排行榜数据
+  const mountainsCleared = Object.keys(saveData.cleared || {}).length;
+  const totalCorrect = saveData.totalCorrect || 0;
+  const bestCombo = saveData.maxComboAll || 0;
+  
+  // 计算最佳等级（遍历所有山的bestScores）
+  const gradeOrder = {'S':0,'A':1,'B':2,'C':3,'D':4,'F':5};
+  let bestGrade = 'F';
+  const scores = saveData.bestScores || {};
+  for (const mtId in scores) {
+    const g = scores[mtId].rank;
+    if (gradeOrder[g] !== undefined && gradeOrder[g] < gradeOrder[bestGrade]) {
+      bestGrade = g;
+    }
+  }
+  
+  try {
+    const { error } = await sb.from('leaderboard').upsert({
+      user_id: _cloudUserId,
+      username: _cloudUsername || '默认玩家',
+      mountains_cleared: mountainsCleared,
+      best_grade: bestGrade,
+      total_correct: totalCorrect,
+      best_combo: bestCombo,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+    if (error) console.warn('Leaderboard update error:', error.message);
+  } catch(e) {
+    console.warn('Leaderboard update exception:', e);
+  }
+}
+
+async function fetchLeaderboard() {
+  const sb = getSupabase();
+  if (!sb) return [];
+  try {
+    const { data, error } = await sb.from('leaderboard')
+      .select('username, mountains_cleared, best_grade, total_correct, best_combo')
+      .order('mountains_cleared', { ascending: false })
+      .order('best_grade', { ascending: true })
+      .order('total_correct', { ascending: false })
+      .limit(20);
+    if (error) { console.warn('Leaderboard fetch error:', error.message); return []; }
+    return data || [];
+  } catch(e) {
+    console.warn('Leaderboard fetch exception:', e);
+    return [];
+  }
+}
+
+async function showLeaderboard() {
+  const modal = document.getElementById('leaderboard-modal');
+  const list = document.getElementById('leaderboard-list');
+  modal.style.display = 'flex';
+  list.innerHTML = '<div style="text-align:center;color:#999">加载中...</div>';
+  
+  const entries = await fetchLeaderboard();
+  if (entries.length === 0) {
+    list.innerHTML = '<div style="text-align:center;color:#999;padding:20px">暂无排行数据</div>';
+    return;
+  }
+  
+  const gradeColors = {'S':'#FFD700','A':'#4CAF50','B':'#2196F3','C':'#FF9800','D':'#F44336','F':'#999'};
+  let html = '<table style="width:100%;border-collapse:collapse">';
+  html += '<tr style="border-bottom:2px solid #ddd;text-align:left"><th style="padding:8px;color:#5D4037">#</th><th style="color:#5D4037">玩家</th><th style="color:#5D4037">通关</th><th style="color:#5D4037">最佳</th><th style="color:#5D4037">答对</th><th style="color:#5D4037">连击</th></tr>';
+  entries.forEach((e, i) => {
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1);
+    const gc = gradeColors[e.best_grade] || '#999';
+    const isMe = e.username === (_cloudUsername || '');
+    const rowBg = isMe ? 'background:rgba(255,152,0,0.08)' : '';
+    html += '<tr style="border-bottom:1px solid #eee;' + rowBg + '">';
+    html += '<td style="padding:8px">' + medal + '</td>';
+    html += '<td>' + e.username + (isMe ? ' <span style="font-size:10px;color:#FF9800">(我)</span>' : '') + '</td>';
+    html += '<td>' + e.mountains_cleared + '/18</td>';
+    html += '<td style="color:' + gc + ';font-weight:bold">' + e.best_grade + '</td>';
+    html += '<td>' + e.total_correct + '</td>';
+    html += '<td>' + e.best_combo + '</td>';
+    html += '</tr>';
+  });
+  html += '</table>';
+  list.innerHTML = html;
+}
+
 
 // ===== Welcome Screen Events =====
 document.getElementById('btn-welcome-register').onclick = welcomeRegister;
