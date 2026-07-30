@@ -377,20 +377,19 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
     <div style="height:16px"></div>
   </div>
   <input type="file" id="file-import-input" accept=".json" style="display:none">
-  <!-- Global Leaderboard Modal -->
-  <div id="leaderboard-modal" class="modal hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center">
-    <div style="background:#FDF5E6;border-radius:16px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);border:2px solid #d4c5a9">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 8px;border-bottom:2px solid #eee">
-        <h2 style="font-size:20px;color:#5D4037;margin:0">🏆 全球排行榜</h2>
-        <button onclick="document.getElementById('leaderboard-modal').style.display='none'" style="background:none;border:none;font-size:24px;cursor:pointer;color:#8B7355;padding:0 4px">&times;</button>
-      </div>
-      <div style="padding:8px 16px">
-        <input id="global-lb-search" type="text" placeholder="🔍 按山名或用户名搜索..." style="width:100%;padding:8px 12px;border:2px solid #d4c5a9;border-radius:10px;font-size:13px;font-family:inherit;color:#5D4037;outline:none;margin-bottom:4px" onfocus="this.style.borderColor='#FF9800'" onblur="this.style.borderColor='#d4c5a9'">
-      </div>
-      <div id="leaderboard-list" style="padding:8px 16px 16px">
-        <div style="text-align:center;color:#999">加载中...</div>
-      </div>
+  <!-- Global Leaderboard Screen -->
+  <div id="global-lb-screen" class="screen hidden">
+    <button class="back-btn" id="btn-back-global-lb">←</button>
+    <div style="font-size:18px;font-weight:bold;color:#5D4037;margin:22px 0 2px">🏆 全球排行榜</div>
+    <div style="padding:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="global-lb-mountain-select" style="flex:1;padding:8px 12px;border:2px solid #d4c5a9;border-radius:10px;font-size:13px;font-family:inherit;color:#5D4037;background:#fff;outline:none;min-width:120px">
+        <option value="">全部山峰</option>
+        <!-- 动态填充 MOUNTAINS 列表 -->
+      </select>
+      <button id="btn-my-rank" class="btn btn-sm btn-outline" style="white-space:nowrap">🏅 我的排名</button>
     </div>
+    <div id="global-lb-list" style="width:100%;overflow-x:auto"></div>
+    <div style="height:16px"></div>
   </div>
 </div>
 <script>
@@ -3889,7 +3888,7 @@ function drawScene(){
 
 // ============ SCREENS ============
 function showScreen(id){
-  ['welcome-screen','title-screen','mt-screen','cfg-screen','end-screen','ach-wall-screen','feedback-stats-screen','lb-screen'].forEach(s=>{
+  ['welcome-screen','title-screen','mt-screen','cfg-screen','end-screen','ach-wall-screen','feedback-stats-screen','lb-screen','global-lb-screen'].forEach(s=>{
     document.getElementById(s).classList.toggle('hidden',s!==id);
   });
   const playing = id===null;
@@ -5353,8 +5352,9 @@ document.getElementById('title-player-new').onkeydown=function(e){
 
 // ===== Leaderboard Event Listeners =====
 document.getElementById('btn-leaderboard').onclick=()=>renderLeaderboard();
-document.getElementById('btn-global-lb').onclick=()=>showLeaderboard();
+document.getElementById('btn-global-lb').onclick=()=>showGlobalLbScreen();
 document.getElementById('btn-back-lb').onclick=()=>renderTitle();
+document.getElementById('btn-back-global-lb').onclick=()=>renderTitle();
 // Leaderboard UI elements (player select, export/import) removed - no event listeners needed
 
 
@@ -5903,14 +5903,32 @@ async function fetchLeaderboard() {
   }
 }
 
-let _globalLbData = []; // cached data for search
+let _globalLbData = []; // cached data
+let _globalLbMode = 'overall'; // 'overall' | 'mountain' | 'myrank'
 
-async function showLeaderboard() {
-  const modal = document.getElementById('leaderboard-modal');
-  const list = document.getElementById('leaderboard-list');
-  const searchInput = document.getElementById('global-lb-search');
-  modal.style.display = 'flex';
-  searchInput.value = '';
+// Populate mountain select dropdown
+function populateGlobalLbMountainSelect() {
+  const sel = document.getElementById('global-lb-mountain-select');
+  if (!sel) return;
+  // Keep the first "全部山峰" option, rebuild the rest
+  sel.innerHTML = '<option value="">全部山峰</option>';
+  MOUNTAINS.forEach(mt => {
+    const opt = document.createElement('option');
+    opt.value = mt.name;
+    opt.textContent = mt.emoji + ' ' + mt.name;
+    sel.appendChild(opt);
+  });
+}
+
+// Show global leaderboard screen
+async function showGlobalLbScreen() {
+  showScreen('global-lb-screen');
+  populateGlobalLbMountainSelect();
+  
+  const list = document.getElementById('global-lb-list');
+  const sel = document.getElementById('global-lb-mountain-select');
+  sel.value = '';
+  _globalLbMode = 'overall';
   list.innerHTML = '<div style="text-align:center;color:#999">加载中...</div>';
   
   _globalLbData = await fetchLeaderboard();
@@ -5919,11 +5937,12 @@ async function showLeaderboard() {
     return;
   }
   
-  renderGlobalLb('');
+  renderGlobalLbView();
 }
 
-function renderGlobalLb(searchQuery) {
-  const list = document.getElementById('leaderboard-list');
+// Render global leaderboard based on current mode
+function renderGlobalLbView() {
+  const list = document.getElementById('global-lb-list');
   const entries = _globalLbData;
   
   if (entries.length === 0) {
@@ -5932,130 +5951,144 @@ function renderGlobalLb(searchQuery) {
   }
   
   const gradeColors = {'S':'#FFD700','A':'#4CAF50','B':'#2196F3','C':'#FF9800','D':'#F44336','F':'#999'};
-  const q = (searchQuery || '').trim().toLowerCase();
   
-  if (!q) {
-    // No search: show overall ranking (list mode)
-    let html = '<table style="width:100%;border-collapse:collapse">';
-    html += '<tr style="border-bottom:2px solid #ddd;text-align:left"><th style="padding:6px;color:#5D4037;font-size:12px">#</th><th style="color:#5D4037;font-size:12px">玩家</th><th style="color:#5D4037;font-size:12px">通关</th><th style="color:#5D4037;font-size:12px">最佳</th><th style="color:#5D4037;font-size:12px">答对</th><th style="color:#5D4037;font-size:12px">连击</th></tr>';
-    entries.forEach((e, i) => {
-      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1);
-      const gc = gradeColors[e.best_grade] || '#999';
-      const isMe = e.username === (_cloudUsername || '');
-      const rowBg = isMe ? 'background:rgba(255,152,0,0.08)' : '';
-      html += '<tr style="border-bottom:1px solid #eee;' + rowBg + '">';
-      html += '<td style="padding:6px;font-size:12px">' + medal + '</td>';
-      html += '<td style="font-size:12px">' + e.username + (isMe ? ' <span style="font-size:10px;color:#FF9800">(我)</span>' : '') + '</td>';
-      html += '<td style="font-size:12px">' + e.mountains_cleared + '/18</td>';
-      html += '<td style="color:' + gc + ';font-weight:bold;font-size:12px">' + e.best_grade + '</td>';
-      html += '<td style="font-size:12px">' + e.total_correct + '</td>';
-      html += '<td style="font-size:12px">' + e.best_combo + '</td>';
-      html += '</tr>';
-    });
-    html += '</table>';
-    list.innerHTML = html;
-  } else {
-    // Search mode
-    // Check if query matches a mountain name
-    const matchedMountains = MOUNTAINS.filter(mt => mt.name.toLowerCase().includes(q));
-    // Check if query matches a username
-    const matchedUsers = entries.filter(e => e.username.toLowerCase().includes(q));
-    
-    let html = '';
-    
-    if (matchedMountains.length > 0) {
-      // Show all players' ranking for matched mountains
-      matchedMountains.forEach(mt => {
-        html += '<div style="margin-bottom:12px">';
-        html += '<div style="font-size:14px;font-weight:bold;color:#5D4037;margin-bottom:4px">' + mt.emoji + ' ' + mt.name + '</div>';
-        // Collect all entries that have a score for this mountain
-        const mtEntries = [];
+  if (_globalLbMode === 'myrank') {
+    // My rank mode: show current user's ranking in each mountain they've climbed
+    const myName = _cloudUsername || '';
+    const myEntry = entries.find(e => e.username === myName);
+    if (!myEntry) {
+      list.innerHTML = '<div style="text-align:center;color:#999;padding:20px">未找到您的排行数据，请先完成至少一座山的挑战</div>';
+      return;
+    }
+    const ms = myEntry.mountain_scores || {};
+    const myMtEntries = [];
+    for (const [mtName, score] of Object.entries(ms)) {
+      const mt = MOUNTAINS.find(m => m.name === mtName);
+      if (mt) {
+        // Calculate rank: how many players have higher diffScore (or same diffScore but lower time) in this mountain
+        let rank = 1;
         entries.forEach(e => {
-          const ms = e.mountain_scores || {};
-          const score = ms[mt.name];
-          if (score) {
-            mtEntries.push({username: e.username, rank: score.rank, time: score.time, diffScore: score.diffScore || 0, isMe: e.username === (_cloudUsername || '')});
+          if (e.username === myName) return;
+          const otherMs = e.mountain_scores || {};
+          const otherScore = otherMs[mtName];
+          if (otherScore) {
+            const otherDiff = otherScore.diffScore || 0;
+            const myDiff = score.diffScore || 0;
+            if (otherDiff > myDiff || (otherDiff === myDiff && otherScore.time < score.time)) {
+              rank++;
+            }
           }
         });
-        // Sort: diffScore desc, then time asc
-        mtEntries.sort((a,b) => b.diffScore - a.diffScore || a.time - b.time);
-        if (mtEntries.length === 0) {
-          html += '<div style="font-size:12px;color:#999;padding:4px 0">暂无记录</div>';
-        } else {
-          html += '<table style="width:100%;border-collapse:collapse">';
-          html += '<tr style="border-bottom:1px solid #ddd;text-align:left"><th style="padding:4px;color:#8B7355;font-size:11px">#</th><th style="color:#8B7355;font-size:11px">玩家</th><th style="color:#8B7355;font-size:11px">评级</th><th style="color:#8B7355;font-size:11px">难度</th><th style="color:#8B7355;font-size:11px">用时</th></tr>';
-          mtEntries.forEach((e, i) => {
-            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1);
-            const gc = gradeColors[e.rank] || '#999';
-            const rowBg = e.isMe ? 'background:rgba(255,152,0,0.08)' : '';
-            const mins = Math.floor(e.time / 60);
-            const secs = e.time % 60;
-            const timeStr = mins > 0 ? mins + '分' + secs + '秒' : secs + '秒';
-            const diffLabel = getDiffLabel(e.diffScore);
-            html += '<tr style="border-bottom:1px solid #eee;' + rowBg + '">';
-            html += '<td style="padding:4px;font-size:12px">' + medal + '</td>';
-            html += '<td style="font-size:12px">' + e.username + (e.isMe ? ' <span style="font-size:10px;color:#FF9800">(我)</span>' : '') + '</td>';
-            html += '<td style="color:' + gc + ';font-weight:bold;font-size:12px">' + e.rank + '</td>';
-            html += '<td style="font-size:11px">' + diffLabel + '</td>';
-            html += '<td style="font-size:12px">' + timeStr + '</td>';
-            html += '</tr>';
-          });
-          html += '</table>';
-        }
-        html += '</div>';
-      });
+        myMtEntries.push({mtName: mtName, emoji: mt.emoji, rank: score.rank, time: score.time, diffScore: score.diffScore || 0, mtRank: rank});
+      }
+    }
+    // Sort: diffScore desc, then time asc
+    myMtEntries.sort((a,b) => b.diffScore - a.diffScore || a.time - b.time);
+    
+    if (myMtEntries.length === 0) {
+      list.innerHTML = '<div style="text-align:center;color:#999;padding:20px">您还未完成任何山峰挑战</div>';
+      return;
     }
     
-    if (matchedUsers.length > 0) {
-      // Show each matched user's best score per mountain
-      matchedUsers.forEach(e => {
-        html += '<div style="margin-bottom:12px">';
-        html += '<div style="font-size:14px;font-weight:bold;color:#5D4037;margin-bottom:4px">👤 ' + e.username + (e.username === (_cloudUsername || '') ? ' <span style="font-size:10px;color:#FF9800">(我)</span>' : '') + '</div>';
-        const ms = e.mountain_scores || {};
-        const mtEntries = [];
-        for (const [mtName, score] of Object.entries(ms)) {
-          const mt = MOUNTAINS.find(m => m.name === mtName);
-          if (mt) {
-            mtEntries.push({mtName: mtName, emoji: mt.emoji, rank: score.rank, time: score.time, diffScore: score.diffScore || 0});
-          }
-        }
-        // Sort: diffScore desc, then time asc
-        mtEntries.sort((a,b) => b.diffScore - a.diffScore || a.time - b.time);
-        if (mtEntries.length === 0) {
-          html += '<div style="font-size:12px;color:#999;padding:4px 0">暂无记录</div>';
-        } else {
-          html += '<table style="width:100%;border-collapse:collapse">';
-          html += '<tr style="border-bottom:1px solid #ddd;text-align:left"><th style="padding:4px;color:#8B7355;font-size:11px">山峰</th><th style="color:#8B7355;font-size:11px">评级</th><th style="color:#8B7355;font-size:11px">难度</th><th style="color:#8B7355;font-size:11px">用时</th></tr>';
-          mtEntries.forEach(e => {
-            const gc = gradeColors[e.rank] || '#999';
-            const mins = Math.floor(e.time / 60);
-            const secs = e.time % 60;
-            const timeStr = mins > 0 ? mins + '分' + secs + '秒' : secs + '秒';
-            const diffLabel = getDiffLabel(e.diffScore);
-            html += '<tr style="border-bottom:1px solid #eee">';
-            html += '<td style="padding:4px;font-size:12px">' + e.emoji + ' ' + e.mtName + '</td>';
-            html += '<td style="color:' + gc + ';font-weight:bold;font-size:12px">' + e.rank + '</td>';
-            html += '<td style="font-size:11px">' + diffLabel + '</td>';
-            html += '<td style="font-size:12px">' + timeStr + '</td>';
-            html += '</tr>';
-          });
-          html += '</table>';
-        }
-        html += '</div>';
-      });
+    let html = '<div style="font-size:13px;color:#5D4037;margin-bottom:8px;font-weight:bold">👤 ' + myName + ' 的各山排名</div>';
+    myMtEntries.forEach(e => {
+      const gc = gradeColors[e.rank] || '#999';
+      const mins = Math.floor(e.time / 60);
+      const secs = e.time % 60;
+      const timeStr = mins > 0 ? mins + '分' + secs + '秒' : secs + '秒';
+      const diffLabel = getDiffLabel(e.diffScore);
+      html += '<div style="background:#fff;border:1.5px solid #d4c5a9;border-radius:10px;padding:8px 12px;margin:4px 0;display:flex;align-items:center;gap:8px">';
+      html += '<span style="font-size:16px">' + e.emoji + '</span>';
+      html += '<div style="flex:1;min-width:0">';
+      html += '<div style="font-size:13px;font-weight:bold;color:#5D4037">' + e.mtName + '</div>';
+      html += '<div style="font-size:11px;color:#8B7355">评级 <span style="color:' + gc + ';font-weight:bold">' + e.rank + '</span> · 难度 ' + diffLabel + ' · 用时 ' + timeStr + '</div>';
+      html += '</div>';
+      html += '<div style="font-size:14px;font-weight:bold;color:#FF9800;white-space:nowrap">#' + e.mtRank + '</div>';
+      html += '</div>';
+    });
+    list.innerHTML = html;
+    
+  } else if (_globalLbMode === 'mountain') {
+    // Mountain filter mode: show all players' ranking for selected mountain
+    const sel = document.getElementById('global-lb-mountain-select');
+    const mtName = sel.value;
+    const mt = MOUNTAINS.find(m => m.name === mtName);
+    if (!mt) {
+      _globalLbMode = 'overall';
+      renderGlobalLbView();
+      return;
     }
     
-    if (matchedMountains.length === 0 && matchedUsers.length === 0) {
-      html = '<div style="text-align:center;color:#999;padding:20px">未找到匹配的结果</div>';
+    const mtEntries = [];
+    entries.forEach(e => {
+      const ms = e.mountain_scores || {};
+      const score = ms[mtName];
+      if (score) {
+        mtEntries.push({username: e.username, rank: score.rank, time: score.time, diffScore: score.diffScore || 0, isMe: e.username === (_cloudUsername || '')});
+      }
+    });
+    // Sort: diffScore desc, then time asc
+    mtEntries.sort((a,b) => b.diffScore - a.diffScore || a.time - b.time);
+    
+    if (mtEntries.length === 0) {
+      list.innerHTML = '<div style="text-align:center;color:#999;padding:20px">该山峰暂无排行记录</div>';
+      return;
     }
     
+    let html = '<div style="font-size:13px;color:#5D4037;margin-bottom:8px;font-weight:bold">' + mt.emoji + ' ' + mt.name + ' 排行榜</div>';
+    mtEntries.forEach((e, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+      const gc = gradeColors[e.rank] || '#999';
+      const mins = Math.floor(e.time / 60);
+      const secs = e.time % 60;
+      const timeStr = mins > 0 ? mins + '分' + secs + '秒' : secs + '秒';
+      const diffLabel = getDiffLabel(e.diffScore);
+      const rowBg = e.isMe ? 'background:linear-gradient(90deg,rgba(255,152,0,0.08),#fff);border-color:#FF9800' : '';
+      html += '<div style="background:#fff;border:1.5px solid #d4c5a9;border-radius:10px;padding:8px 12px;margin:4px 0;display:flex;align-items:center;gap:8px;' + rowBg + '">';
+      html += '<div style="font-size:14px;font-weight:bold;color:#5D4037;min-width:28px;text-align:center">' + (medal || (i+1)) + '</div>';
+      html += '<div style="flex:1;min-width:0">';
+      html += '<div style="font-size:13px;font-weight:bold;color:#5D4037">' + e.username + (e.isMe ? ' <span style="font-size:10px;color:#FF9800">(我)</span>' : '') + '</div>';
+      html += '<div style="font-size:11px;color:#8B7355">评级 <span style="color:' + gc + ';font-weight:bold">' + e.rank + '</span> · 难度 ' + diffLabel + ' · 用时 ' + timeStr + '</div>';
+      html += '</div>';
+      html += '</div>';
+    });
+    list.innerHTML = html;
+    
+  } else {
+    // Overall mode: show all users by mountains_cleared
+    let html = '';
+    entries.forEach((e, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+      const gc = gradeColors[e.best_grade] || '#999';
+      const isMe = e.username === (_cloudUsername || '');
+      const rowBg = isMe ? 'background:linear-gradient(90deg,rgba(255,152,0,0.08),#fff);border-color:#FF9800' : '';
+      html += '<div style="background:#fff;border:1.5px solid #d4c5a9;border-radius:10px;padding:8px 12px;margin:4px 0;display:flex;align-items:center;gap:8px;' + rowBg + '">';
+      html += '<div style="font-size:14px;font-weight:bold;color:#5D4037;min-width:28px;text-align:center">' + (medal || (i+1)) + '</div>';
+      html += '<div style="flex:1;min-width:0">';
+      html += '<div style="font-size:13px;font-weight:bold;color:#5D4037">' + e.username + (isMe ? ' <span style="font-size:10px;color:#FF9800">(我)</span>' : '') + '</div>';
+      html += '<div style="font-size:11px;color:#8B7355">通关 ' + e.mountains_cleared + '/18 · 最佳 <span style="color:' + gc + ';font-weight:bold">' + e.best_grade + '</span> · 答对 ' + e.total_correct + ' · 连击 ' + e.best_combo + '</div>';
+      html += '</div>';
+      html += '</div>';
+    });
     list.innerHTML = html;
   }
 }
 
-// Add search input event listener
-document.getElementById('global-lb-search').oninput = function() {
-  renderGlobalLb(this.value);
+// Mountain select change event
+document.getElementById('global-lb-mountain-select').onchange = function() {
+  if (this.value) {
+    _globalLbMode = 'mountain';
+  } else {
+    _globalLbMode = 'overall';
+  }
+  renderGlobalLbView();
+};
+
+// My rank button click event
+document.getElementById('btn-my-rank').onclick = function() {
+  _globalLbMode = 'myrank';
+  document.getElementById('global-lb-mountain-select').value = '';
+  renderGlobalLbView();
 };
 
 
