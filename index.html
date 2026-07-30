@@ -283,10 +283,6 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
         <div class="config-opts" id="cfg-step"></div>
       </div>
       <div class="config-section">
-        <div class="config-label">⏱️ 答题时限</div>
-        <div class="config-opts" id="cfg-time"></div>
-      </div>
-      <div class="config-section">
         <div class="config-label">💥 惩罚模式</div>
         <div class="config-opts" id="cfg-penalty"></div>
       </div>
@@ -296,7 +292,7 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
         <div id="cat-summary" style="font-size:11px;color:#8B7355;margin-top:4px;width:100%"></div>
       </div>
       <div class="config-section">
-        <div class="config-label">🎯 题目难度 <span style="font-weight:normal;font-size:10px;color:#8B7355">(多选，默认全选)</span></div>
+        <div class="config-label">🎯 题目难度 <span style="font-weight:normal;font-size:10px;color:#8B7355">(单选，默认普通)</span></div>
         <div class="config-opts" id="cfg-qdiff"></div>
         <div id="qdiff-summary" style="font-size:11px;color:#8B7355;margin-top:4px;width:100%"></div>
       </div>
@@ -376,31 +372,8 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
   <div id="lb-screen" class="screen hidden">
     <button class="back-btn" id="btn-back-lb">←</button>
     <div style="font-size:18px;font-weight:bold;color:#5D4037;margin:22px 0 2px">🏅 排行榜</div>
-    <div style="font-size:12px;color:#8B7355;margin-bottom:4px">记录每座山的最佳成绩</div>
-    <div class="lb-player-bar">
-      <select class="lb-player-select" id="lb-player-select"></select>
-      <input class="lb-player-input" id="lb-player-new" placeholder="新昵称" maxlength="12">
-      <button class="lb-player-add" id="btn-lb-add-player">添加</button>
-    </div>
+    <div style="font-size:12px;color:#8B7355;margin-bottom:4px">每座山的最佳成绩（综合难度优先，同难度按用时排序）</div>
     <div id="lb-table-container" style="width:100%;overflow-x:auto"></div>
-    <div class="lb-bottom-bar">
-      <button class="btn btn-sm" id="btn-lb-export">📤 分享成绩</button>
-      <button class="btn btn-sm btn-outline" id="btn-lb-import">📥 导入排行</button>
-    </div>
-    <div class="lb-share-area hidden" id="lb-share-area">
-      <textarea id="lb-share-text" readonly placeholder="点击上方按钮生成分享文本"></textarea>
-      <div style="display:flex;gap:6px;margin-top:4px">
-        <button class="btn btn-sm" id="btn-lb-copy" style="flex:1">📋 复制到剪贴板</button>
-        <button class="btn btn-sm btn-outline" id="btn-lb-close-share" style="flex:1">关闭</button>
-      </div>
-    </div>
-    <div class="lb-share-area hidden" id="lb-import-area">
-      <textarea id="lb-import-text" placeholder="在此粘贴其他玩家的成绩文本"></textarea>
-      <div style="display:flex;gap:6px;margin-top:4px">
-        <button class="btn btn-sm" id="btn-lb-do-import" style="flex:1">✅ 导入</button>
-        <button class="btn btn-sm btn-outline" id="btn-lb-close-import" style="flex:1">关闭</button>
-      </div>
-    </div>
     <div style="height:16px"></div>
   </div>
   <input type="file" id="file-import-input" accept=".json" style="display:none">
@@ -411,7 +384,10 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
         <h2 style="font-size:20px;color:#5D4037;margin:0">🏆 全球排行榜</h2>
         <button onclick="document.getElementById('leaderboard-modal').style.display='none'" style="background:none;border:none;font-size:24px;cursor:pointer;color:#8B7355;padding:0 4px">&times;</button>
       </div>
-      <div id="leaderboard-list" style="padding:16px">
+      <div style="padding:8px 16px">
+        <input id="global-lb-search" type="text" placeholder="🔍 按山名或用户名搜索..." style="width:100%;padding:8px 12px;border:2px solid #d4c5a9;border-radius:10px;font-size:13px;font-family:inherit;color:#5D4037;outline:none;margin-bottom:4px" onfocus="this.style.borderColor='#FF9800'" onblur="this.style.borderColor='#d4c5a9'">
+      </div>
+      <div id="leaderboard-list" style="padding:8px 16px 16px">
         <div style="text-align:center;color:#999">加载中...</div>
       </div>
     </div>
@@ -443,9 +419,9 @@ const MOUNTAINS = [
 ];
 const TIER_NAMES = {1:"第一梯队：热身",2:"第二梯队：正经山",3:"第三梯队：世界级",4:"第四梯队：八千米俱乐部"};
 
-const STEP_OPTS = [{label:"100m(休闲)",val:100},{label:"50m(普通)",val:50},{label:"30m(困难)",val:30},{label:"10m(地狱)",val:10}];
-const TIME_OPTS = [{label:"60s",val:60},{label:"30s",val:30},{label:"15s",val:15},{label:"10s",val:10}];
-const PENALTY_OPTS = [{label:"宽松(退1步)",val:1},{label:"普通(退3步)",val:3},{label:"残酷(退5步)",val:5},{label:"地狱(滚回山脚)",val:-1}];
+const STEP_OPTS = [{label:"100m(普通)",val:100},{label:"50m(困难)",val:50},{label:"10m(地狱)",val:10}];
+// TIME_OPTS removed - cfgTime is now fixed at 15 seconds
+const PENALTY_OPTS = [{label:"普通(退1步)",val:1},{label:"困难(退3步)",val:3},{label:"地狱(滚回山脚)",val:-1}];
 
 const PROPS_DEF = [
   {id:"magnet",name:"磁铁",icon:"🧲",desc:"排除1个错误选项",uses:2,auto:false},
@@ -467,12 +443,7 @@ const Q_CATEGORIES = [
 ];
 
 // ============ DIFFICULTY OPTIONS (multi-select) ============
-const Q_DIFF_DEFS = [
-  {diff:1,label:"🟢 休闲",color:"#4CAF50"},
-  {diff:2,label:"🟡 普通",color:"#8BC34A"},
-  {diff:3,label:"🟠 困难",color:"#FF9800"},
-  {diff:4,label:"🔴 地狱",color:"#F44336"}
-];
+const DIFF_OPTS = [{label:"容易",val:"easy"},{label:"普通",val:"medium"},{label:"困难",val:"hard"}];
 
 // ============ QUESTION BANK (3000 questions) ============
 const QUESTION_BANK = [
@@ -3550,9 +3521,9 @@ const cv=document.getElementById('cv');
 const ctx=cv.getContext('2d');
 let gameState='title';
 let currentMt=null;
-let cfgStep=100, cfgTime=60, cfgPenalty=1;
+let cfgStep=100, cfgTime=15, cfgPenalty=1;
 let cfgCategories=["geo","history","life","science","literature","ent"]; // all 6 selected by default
-let cfgDiffs=[1]; // default to 休闲 only
+let cfgDiffs="medium"; // default to 普通 (single-select radio)
 let selectedProps=[];
 let propUses={};
 let progress=0, totalSteps=0;
@@ -3616,9 +3587,10 @@ function getMountainColor(alt){
 
 function calcDifficulty(){
   let score=0;
-  if(cfgStep===100) score+=1; else if(cfgStep===50) score+=3; else if(cfgStep===30) score+=5; else score+=8;
-  if(cfgTime===60) score+=1; else if(cfgTime===30) score+=2; else if(cfgTime===15) score+=4; else score+=6;
-  if(cfgPenalty===1) score+=1; else if(cfgPenalty===3) score+=3; else if(cfgPenalty===5) score+=5; else score+=8;
+  if(cfgStep===100) score+=1; else if(cfgStep===50) score+=3; else score+=8;
+  // cfgTime fixed at 15s
+  score+=4;
+  if(cfgPenalty===1) score+=1; else if(cfgPenalty===3) score+=3; else score+=8;
   if(currentMt){
     const s=currentMt.steps;
     if(s<=6) score+=1; else if(s<=22) score+=2; else if(s<=62) score+=4; else score+=6;
@@ -3633,11 +3605,20 @@ function calcDifficulty(){
 }
 
 // ============ QUESTION POOL BUILDER ============
+function cfgDiffsToNumbers(){
+  // Map DIFF_OPTS single-select value to question difficulty numbers
+  // easy=容易 → diff 1,2; medium=普通 → diff 2,3; hard=困难 → diff 3,4
+  if(cfgDiffs==="easy") return [1,2];
+  if(cfgDiffs==="medium") return [2,3];
+  if(cfgDiffs==="hard") return [3,4];
+  return [2,3]; // fallback
+}
+
 function getFilteredPool(){
-  // Filter QUESTION_BANK by selected categories and difficulties
+  const diffNums=cfgDiffsToNumbers();
   return QUESTION_BANK.filter((q,i)=>{
     if(!cfgCategories.includes(q.cat)) return false;
-    if(!cfgDiffs.includes(q.diff)) return false;
+    if(!diffNums.includes(q.diff)) return false;
     return true;
   }).map((q,i)=>{
     // Find original index in QUESTION_BANK
@@ -3648,13 +3629,14 @@ function getFilteredPool(){
 function buildQuestionPool(){
   // Build filtered pool and pick questions, avoiding repeats within a session
   usedQuestionIndices = new Set();
+  const diffNums=cfgDiffsToNumbers();
   const needed = totalSteps + 20; // some buffer
   
   // First try: get from filtered pool, excluding already used
   let filtered = [];
   for(let i=0; i<QUESTION_BANK.length; i++){
     const q = QUESTION_BANK[i];
-    if(cfgCategories.includes(q.cat) && cfgDiffs.includes(q.diff) && !usedQuestionIndices.has(i)){
+    if(cfgCategories.includes(q.cat) && diffNums.includes(q.diff) && !usedQuestionIndices.has(i)){
       filtered.push(i);
     }
   }
@@ -3974,16 +3956,8 @@ function renderConfig(){
     stepDiv.appendChild(btn);
   });
 
-  // Time options
-  const timeDiv=document.getElementById('cfg-time');
-  timeDiv.innerHTML='';
-  TIME_OPTS.forEach(o=>{
-    const btn=document.createElement('div');
-    btn.className='config-opt'+(cfgTime===o.val?' sel':'');
-    btn.textContent=o.label;
-    btn.onclick=()=>{cfgTime=o.val;renderConfig()};
-    timeDiv.appendChild(btn);
-  });
+  // Time is fixed at 15s - no UI needed
+  cfgTime=15;
 
   // Penalty options
   const penDiv=document.getElementById('cfg-penalty');
@@ -4027,34 +4001,23 @@ function renderConfig(){
     catSummary.textContent='当前: '+names;
   }
 
-  // Difficulty selection (multi-select, default all selected)
+  // Difficulty selection (single-select radio, default "普通")
   const qdiffDiv=document.getElementById('cfg-qdiff');
   qdiffDiv.innerHTML='';
-  Q_DIFF_DEFS.forEach(d=>{
-    const isSel=cfgDiffs.includes(d.diff);
+  DIFF_OPTS.forEach(d=>{
+    const isSel=cfgDiffs===d.val;
     const btn=document.createElement('div');
     btn.className='config-opt'+(isSel?' sel':'');
     btn.textContent=d.label;
     btn.onclick=()=>{
-      if(isSel){
-        cfgDiffs=cfgDiffs.filter(x=>x!==d.diff);
-        if(cfgDiffs.length===0){
-          cfgDiffs=[1,2,3,4];
-        }
-      }else{
-        cfgDiffs.push(d.diff);
-      }
+      cfgDiffs=d.val;
       renderConfig();
     };
     qdiffDiv.appendChild(btn);
   });
   const diffSummary=document.getElementById('qdiff-summary');
-  if(cfgDiffs.length===4){
-    diffSummary.textContent='当前: 全部难度';
-  }else{
-    const names=Q_DIFF_DEFS.filter(d=>cfgDiffs.includes(d.diff)).map(d=>d.label).join('、');
-    diffSummary.textContent='当前: '+names;
-  }
+  const selDiff=DIFF_OPTS.find(d=>d.val===cfgDiffs);
+  diffSummary.textContent='当前: '+(selDiff?selDiff.label:'普通');
 
   // Props
   const propsDiv=document.getElementById('cfg-props');
@@ -4385,9 +4348,11 @@ function endGame(won){
   }
   if(won){
     if(!saveData.cleared[currentMt.id]) saveData.cleared[currentMt.id]=true;
+    const diffScore=calcDifficulty().score;
     const prev=saveData.bestScores[currentMt.id];
-    if(!prev||grade<prev.rank||(grade===prev.rank&&elapsed<prev.time)){
-      saveData.bestScores[currentMt.id]={rank:grade,time:elapsed};
+    // Update if: no previous, or higher difficulty score, or same difficulty but faster time
+    if(!prev||diffScore>prev.diffScore||(diffScore===prev.diffScore&&elapsed<prev.time)){
+      saveData.bestScores[currentMt.id]={rank:grade,time:elapsed,diffScore:diffScore};
     }
   }
   saveData.totalCorrect=(saveData.totalCorrect||0)+correctCount;
@@ -4542,7 +4507,7 @@ function saveCurrentConfig(){
   configs[name]={
     mountainId:currentMt?currentMt.id:1,
     cfgStep:cfgStep,cfgTime:cfgTime,cfgPenalty:cfgPenalty,
-    cfgCategories:[...cfgCategories],cfgDiffs:[...cfgDiffs],
+    cfgCategories:[...cfgCategories],cfgDiffs:cfgDiffs,
     selectedProps:selectedProps.map(p=>p.id)
   };
   localStorage.setItem('olduncle_configs',JSON.stringify(configs));
@@ -4557,10 +4522,10 @@ function loadConfig(name){
   const cfg=configs[name];
   if(!cfg) return;
   if(cfg.cfgStep) cfgStep=cfg.cfgStep;
-  if(cfg.cfgTime) cfgTime=cfg.cfgTime;
+  cfgTime=15; // always fixed at 15s
   if(cfg.cfgPenalty!==undefined) cfgPenalty=cfg.cfgPenalty;
   if(cfg.cfgCategories) cfgCategories=[...cfg.cfgCategories];
-  if(cfg.cfgDiffs) cfgDiffs=[...cfg.cfgDiffs];
+  if(cfg.cfgDiffs) cfgDiffs=cfg.cfgDiffs;
   if(cfg.selectedProps){
     selectedProps=cfg.selectedProps.map(id=>PROPS_DEF.find(p=>p.id===id)).filter(Boolean);
   }
@@ -4821,11 +4786,6 @@ function refreshPlayerSelectors() {
   const titleSel = document.getElementById('title-player-select');
   if (titleSel) {
     titleSel.innerHTML = players.map(p => `<option value="${p.name}" ${p.name===active?'selected':''}>${p.name}</option>`).join('');
-  }
-  // Leaderboard selector
-  const lbSel = document.getElementById('lb-player-select');
-  if (lbSel) {
-    lbSel.innerHTML = players.map(p => `<option value="${p.name}" ${p.name===active?'selected':''}>${p.name}</option>`).join('');
   }
 }
 
@@ -5213,8 +5173,8 @@ function updateRankData(playerName, scores) {
   setRankData(all);
 }
 
-function buildRankScore(grade, time, date) {
-  return {rank: grade, time: time, date: date || new Date().toLocaleDateString('zh-CN')};
+function buildRankScore(grade, time, diffScore, date) {
+  return {rank: grade, time: time, diffScore: diffScore || 0, date: date || new Date().toLocaleDateString('zh-CN')};
 }
 
 // After each game ends, sync to leaderboard
@@ -5223,7 +5183,7 @@ function syncScoresToLeaderboard() {
   const scores = {};
   if (saveData.bestScores) {
     for (const [mtId, score] of Object.entries(saveData.bestScores)) {
-      scores[mtId] = buildRankScore(score.rank, score.time);
+      scores[mtId] = buildRankScore(score.rank, score.time, score.diffScore);
     }
   }
   if (Object.keys(scores).length > 0) {
@@ -5236,11 +5196,7 @@ function syncScoresToLeaderboard() {
 function renderLeaderboard() {
   gameState = 'leaderboard';
   showScreen('lb-screen');
-  refreshPlayerSelectors();
   renderLeaderboardTable();
-  // Reset share/import areas
-  document.getElementById('lb-share-area').classList.add('hidden');
-  document.getElementById('lb-import-area').classList.add('hidden');
 }
 
 function renderLeaderboardTable() {
@@ -5257,26 +5213,35 @@ function renderLeaderboardTable() {
       const mins = Math.floor(score.time / 60);
       const secs = score.time % 60;
       const timeStr = mins > 0 ? `${mins}分${secs}秒` : `${secs}秒`;
+      const diffLabel = score.diffScore ? getDiffLabel(score.diffScore) : '-';
       rows += `<tr>
         <td>${mt.emoji} ${mt.name}</td>
         <td class="${rankClass}">${score.rank}</td>
+        <td>${diffLabel}</td>
         <td>${timeStr}</td>
-        <td style="font-size:10px;color:#8B7355">${score.date || '-'}</td>
       </tr>`;
     } else {
       rows += `<tr>
         <td>${mt.emoji} ${mt.name}</td>
         <td style="color:#ccc">-</td>
         <td style="color:#ccc">-</td>
-        <td style="font-size:10px;color:#ccc">-</td>
+        <td style="color:#ccc">-</td>
       </tr>`;
     }
   });
 
   container.innerHTML = `<table class="lb-table">
-    <thead><tr><th>山峰</th><th>评级</th><th>用时</th><th>日期</th></tr></thead>
+    <thead><tr><th>山峰</th><th>评级</th><th>难度</th><th>用时</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
+}
+
+function getDiffLabel(score){
+  if(score<=6) return "🟢 休闲";
+  if(score<=10) return "🟡 简单";
+  if(score<=14) return "🟠 普通";
+  if(score<=18) return "🔴 困难";
+  return "💀 地狱";
 }
 
 function exportLeaderboardText() {
@@ -5306,12 +5271,11 @@ function importLeaderboardText(text) {
     }
     const allRank = getRankData();
     if (!allRank[obj.name]) allRank[obj.name] = {};
-    // Merge: keep better score
+    // Merge: keep better score (higher diffScore wins, same diffScore → faster time)
     for (const [mtId, score] of Object.entries(obj.scores)) {
       const existing = allRank[obj.name][mtId];
-      const rankOrder = {'S':0,'A':1,'B':2,'C':3,'D':4,'F':5};
-      if (!existing || rankOrder[score.rank] < rankOrder[existing.rank] ||
-          (score.rank === existing.rank && score.time < existing.time)) {
+      if (!existing || (score.diffScore||0) > (existing.diffScore||0) ||
+          ((score.diffScore||0)===(existing.diffScore||0) && score.time < existing.time)) {
         allRank[obj.name][mtId] = score;
       }
     }
@@ -5391,44 +5355,7 @@ document.getElementById('title-player-new').onkeydown=function(e){
 document.getElementById('btn-leaderboard').onclick=()=>renderLeaderboard();
 document.getElementById('btn-global-lb').onclick=()=>showLeaderboard();
 document.getElementById('btn-back-lb').onclick=()=>renderTitle();
-document.getElementById('lb-player-select').onchange=function(){const v=this.value;const active=getActivePlayer();if(v!==active){loginPlayer(v).then(ok=>{if(ok){renderLeaderboardTable();}else{document.getElementById('lb-player-select').value=active;}});}};
-document.getElementById('btn-lb-add-player').onclick=function(){
-  const input=document.getElementById('lb-player-new');
-  const name=input.value.trim();
-  if(name){addPlayer(name).then(()=>{refreshPlayerSelectors();renderLeaderboardTable();input.value='';});}
-};
-document.getElementById('lb-player-new').onkeydown=function(e){
-  if(e.key==='Enter'){document.getElementById('btn-lb-add-player').click()}
-};
-document.getElementById('btn-lb-export').onclick=function(){
-  const text=exportLeaderboardText();
-  document.getElementById('lb-share-text').value=text;
-  document.getElementById('lb-share-area').classList.remove('hidden');
-  document.getElementById('lb-import-area').classList.add('hidden');
-};
-document.getElementById('btn-lb-import').onclick=function(){
-  document.getElementById('lb-import-area').classList.remove('hidden');
-  document.getElementById('lb-share-area').classList.add('hidden');
-  document.getElementById('lb-import-text').value='';
-};
-document.getElementById('btn-lb-copy').onclick=function(){
-  const text=document.getElementById('lb-share-text').value;
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(()=>showDmToast('📋 已复制到剪贴板！')).catch(()=>{
-      document.getElementById('lb-share-text').select();document.execCommand('copy');showDmToast('📋 已复制！');
-    });
-  }else{
-    document.getElementById('lb-share-text').select();document.execCommand('copy');showDmToast('📋 已复制！');
-  }
-};
-document.getElementById('btn-lb-close-share').onclick=()=>document.getElementById('lb-share-area').classList.add('hidden');
-document.getElementById('btn-lb-close-import').onclick=()=>document.getElementById('lb-import-area').classList.add('hidden');
-document.getElementById('btn-lb-do-import').onclick=function(){
-  const text=document.getElementById('lb-import-text').value;
-  if(importLeaderboardText(text)){
-    document.getElementById('lb-import-area').classList.add('hidden');
-  }
-};
+// Leaderboard UI elements (player select, export/import) removed - no event listeners needed
 
 
 // ============ WELCOME SCREEN / LOGIN FLOW ============
@@ -5795,7 +5722,6 @@ function applyCloudPayload(obj) {
   }
 
   // New format (version 2+)
-  const rankOrder = {'S':0,'A':1,'B':2,'C':3,'D':4,'F':5};
   // 1. Restore progress (saveData)
   if (obj.progress && typeof obj.progress === 'object') {
     const prog = obj.progress;
@@ -5805,13 +5731,13 @@ function applyCloudPayload(obj) {
     const localProg = loadPlayerSave();
     // For progress: use cloud as primary, but merge cleared mountains (union)
     const mergedCleared = Object.assign({}, localProg.cleared || {}, prog.cleared || {});
-    // For bestScores: keep the better score for each mountain
+    // For bestScores: keep the better score for each mountain (diffScore priority, then time)
     const mergedScores = Object.assign({}, localProg.bestScores || {});
     if (prog.bestScores) {
       for (const [mtId, score] of Object.entries(prog.bestScores)) {
         const existing = mergedScores[mtId];
-        if (!existing || (rankOrder[score.rank] || 99) < (rankOrder[existing.rank] || 99) ||
-            (score.rank === existing.rank && score.time < existing.time)) {
+        if (!existing || (score.diffScore||0) > (existing.diffScore||0) ||
+            ((score.diffScore||0)===(existing.diffScore||0) && score.time < existing.time)) {
           mergedScores[mtId] = score;
         }
       }
@@ -5829,7 +5755,7 @@ function applyCloudPayload(obj) {
     localStorage.setItem(getSaveKey(getActivePlayer() || _cloudUsername || '默认玩家'), JSON.stringify(saveData));
   }
 
-  // 2. Restore rank data (merge, keep better scores)
+  // 2. Restore rank data (merge, keep better scores - diffScore priority, then time)
   if (obj.rank && typeof obj.rank === 'object') {
     let localRank = {};
     try { localRank = JSON.parse(localStorage.getItem(RANK_DATA_KEY)) || {}; } catch(e) {}
@@ -5837,8 +5763,8 @@ function applyCloudPayload(obj) {
       if (!localRank[playerName]) localRank[playerName] = {};
       for (const [mtId, score] of Object.entries(scores)) {
         const existing = localRank[playerName][mtId];
-        if (!existing || (rankOrder[score.rank] || 99) < (rankOrder[existing.rank] || 99) ||
-            (score.rank === existing.rank && score.time < existing.time)) {
+        if (!existing || (score.diffScore||0) > (existing.diffScore||0) ||
+            ((score.diffScore||0)===(existing.diffScore||0) && score.time < existing.time)) {
           localRank[playerName][mtId] = score;
         }
       }
@@ -5929,6 +5855,19 @@ async function updateLeaderboard() {
     }
   }
   
+  // Build mountain_scores JSON for per-mountain ranking
+  const mountainScores = {};
+  for (const [mtId, score] of Object.entries(scores)) {
+    const mt = MOUNTAINS.find(m => m.id === parseInt(mtId));
+    if (mt) {
+      mountainScores[mt.name] = {
+        rank: score.rank,
+        time: score.time,
+        diffScore: score.diffScore || 0
+      };
+    }
+  }
+  
   try {
     const { error } = await sb.from('leaderboard').upsert({
       user_id: _cloudUserId,
@@ -5937,6 +5876,7 @@ async function updateLeaderboard() {
       best_grade: bestGrade,
       total_correct: totalCorrect,
       best_combo: bestCombo,
+      mountain_scores: mountainScores,
       updated_at: new Date().toISOString()
     }, { onConflict: 'user_id' });
     if (error) console.warn('Leaderboard update error:', error.message);
@@ -5950,11 +5890,11 @@ async function fetchLeaderboard() {
   if (!sb) return [];
   try {
     const { data, error } = await sb.from('leaderboard')
-      .select('username, mountains_cleared, best_grade, total_correct, best_combo')
+      .select('username, mountains_cleared, best_grade, total_correct, best_combo, mountain_scores')
       .order('mountains_cleared', { ascending: false })
       .order('best_grade', { ascending: true })
       .order('total_correct', { ascending: false })
-      .limit(20);
+      .limit(100);
     if (error) { console.warn('Leaderboard fetch error:', error.message); return []; }
     return data || [];
   } catch(e) {
@@ -5963,39 +5903,160 @@ async function fetchLeaderboard() {
   }
 }
 
+let _globalLbData = []; // cached data for search
+
 async function showLeaderboard() {
   const modal = document.getElementById('leaderboard-modal');
   const list = document.getElementById('leaderboard-list');
-  modal.classList.remove('hidden');
+  const searchInput = document.getElementById('global-lb-search');
   modal.style.display = 'flex';
+  searchInput.value = '';
   list.innerHTML = '<div style="text-align:center;color:#999">加载中...</div>';
   
-  const entries = await fetchLeaderboard();
+  _globalLbData = await fetchLeaderboard();
+  if (_globalLbData.length === 0) {
+    list.innerHTML = '<div style="text-align:center;color:#999;padding:20px">暂无排行数据</div>';
+    return;
+  }
+  
+  renderGlobalLb('');
+}
+
+function renderGlobalLb(searchQuery) {
+  const list = document.getElementById('leaderboard-list');
+  const entries = _globalLbData;
+  
   if (entries.length === 0) {
     list.innerHTML = '<div style="text-align:center;color:#999;padding:20px">暂无排行数据</div>';
     return;
   }
   
   const gradeColors = {'S':'#FFD700','A':'#4CAF50','B':'#2196F3','C':'#FF9800','D':'#F44336','F':'#999'};
-  let html = '<table style="width:100%;border-collapse:collapse">';
-  html += '<tr style="border-bottom:2px solid #ddd;text-align:left"><th style="padding:8px;color:#5D4037">#</th><th style="color:#5D4037">玩家</th><th style="color:#5D4037">通关</th><th style="color:#5D4037">最佳</th><th style="color:#5D4037">答对</th><th style="color:#5D4037">连击</th></tr>';
-  entries.forEach((e, i) => {
-    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1);
-    const gc = gradeColors[e.best_grade] || '#999';
-    const isMe = e.username === (_cloudUsername || '');
-    const rowBg = isMe ? 'background:rgba(255,152,0,0.08)' : '';
-    html += '<tr style="border-bottom:1px solid #eee;' + rowBg + '">';
-    html += '<td style="padding:8px">' + medal + '</td>';
-    html += '<td>' + e.username + (isMe ? ' <span style="font-size:10px;color:#FF9800">(我)</span>' : '') + '</td>';
-    html += '<td>' + e.mountains_cleared + '/18</td>';
-    html += '<td style="color:' + gc + ';font-weight:bold">' + e.best_grade + '</td>';
-    html += '<td>' + e.total_correct + '</td>';
-    html += '<td>' + e.best_combo + '</td>';
-    html += '</tr>';
-  });
-  html += '</table>';
-  list.innerHTML = html;
+  const q = (searchQuery || '').trim().toLowerCase();
+  
+  if (!q) {
+    // No search: show overall ranking (list mode)
+    let html = '<table style="width:100%;border-collapse:collapse">';
+    html += '<tr style="border-bottom:2px solid #ddd;text-align:left"><th style="padding:6px;color:#5D4037;font-size:12px">#</th><th style="color:#5D4037;font-size:12px">玩家</th><th style="color:#5D4037;font-size:12px">通关</th><th style="color:#5D4037;font-size:12px">最佳</th><th style="color:#5D4037;font-size:12px">答对</th><th style="color:#5D4037;font-size:12px">连击</th></tr>';
+    entries.forEach((e, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1);
+      const gc = gradeColors[e.best_grade] || '#999';
+      const isMe = e.username === (_cloudUsername || '');
+      const rowBg = isMe ? 'background:rgba(255,152,0,0.08)' : '';
+      html += '<tr style="border-bottom:1px solid #eee;' + rowBg + '">';
+      html += '<td style="padding:6px;font-size:12px">' + medal + '</td>';
+      html += '<td style="font-size:12px">' + e.username + (isMe ? ' <span style="font-size:10px;color:#FF9800">(我)</span>' : '') + '</td>';
+      html += '<td style="font-size:12px">' + e.mountains_cleared + '/18</td>';
+      html += '<td style="color:' + gc + ';font-weight:bold;font-size:12px">' + e.best_grade + '</td>';
+      html += '<td style="font-size:12px">' + e.total_correct + '</td>';
+      html += '<td style="font-size:12px">' + e.best_combo + '</td>';
+      html += '</tr>';
+    });
+    html += '</table>';
+    list.innerHTML = html;
+  } else {
+    // Search mode
+    // Check if query matches a mountain name
+    const matchedMountains = MOUNTAINS.filter(mt => mt.name.toLowerCase().includes(q));
+    // Check if query matches a username
+    const matchedUsers = entries.filter(e => e.username.toLowerCase().includes(q));
+    
+    let html = '';
+    
+    if (matchedMountains.length > 0) {
+      // Show all players' ranking for matched mountains
+      matchedMountains.forEach(mt => {
+        html += '<div style="margin-bottom:12px">';
+        html += '<div style="font-size:14px;font-weight:bold;color:#5D4037;margin-bottom:4px">' + mt.emoji + ' ' + mt.name + '</div>';
+        // Collect all entries that have a score for this mountain
+        const mtEntries = [];
+        entries.forEach(e => {
+          const ms = e.mountain_scores || {};
+          const score = ms[mt.name];
+          if (score) {
+            mtEntries.push({username: e.username, rank: score.rank, time: score.time, diffScore: score.diffScore || 0, isMe: e.username === (_cloudUsername || '')});
+          }
+        });
+        // Sort: diffScore desc, then time asc
+        mtEntries.sort((a,b) => b.diffScore - a.diffScore || a.time - b.time);
+        if (mtEntries.length === 0) {
+          html += '<div style="font-size:12px;color:#999;padding:4px 0">暂无记录</div>';
+        } else {
+          html += '<table style="width:100%;border-collapse:collapse">';
+          html += '<tr style="border-bottom:1px solid #ddd;text-align:left"><th style="padding:4px;color:#8B7355;font-size:11px">#</th><th style="color:#8B7355;font-size:11px">玩家</th><th style="color:#8B7355;font-size:11px">评级</th><th style="color:#8B7355;font-size:11px">难度</th><th style="color:#8B7355;font-size:11px">用时</th></tr>';
+          mtEntries.forEach((e, i) => {
+            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1);
+            const gc = gradeColors[e.rank] || '#999';
+            const rowBg = e.isMe ? 'background:rgba(255,152,0,0.08)' : '';
+            const mins = Math.floor(e.time / 60);
+            const secs = e.time % 60;
+            const timeStr = mins > 0 ? mins + '分' + secs + '秒' : secs + '秒';
+            const diffLabel = getDiffLabel(e.diffScore);
+            html += '<tr style="border-bottom:1px solid #eee;' + rowBg + '">';
+            html += '<td style="padding:4px;font-size:12px">' + medal + '</td>';
+            html += '<td style="font-size:12px">' + e.username + (e.isMe ? ' <span style="font-size:10px;color:#FF9800">(我)</span>' : '') + '</td>';
+            html += '<td style="color:' + gc + ';font-weight:bold;font-size:12px">' + e.rank + '</td>';
+            html += '<td style="font-size:11px">' + diffLabel + '</td>';
+            html += '<td style="font-size:12px">' + timeStr + '</td>';
+            html += '</tr>';
+          });
+          html += '</table>';
+        }
+        html += '</div>';
+      });
+    }
+    
+    if (matchedUsers.length > 0) {
+      // Show each matched user's best score per mountain
+      matchedUsers.forEach(e => {
+        html += '<div style="margin-bottom:12px">';
+        html += '<div style="font-size:14px;font-weight:bold;color:#5D4037;margin-bottom:4px">👤 ' + e.username + (e.username === (_cloudUsername || '') ? ' <span style="font-size:10px;color:#FF9800">(我)</span>' : '') + '</div>';
+        const ms = e.mountain_scores || {};
+        const mtEntries = [];
+        for (const [mtName, score] of Object.entries(ms)) {
+          const mt = MOUNTAINS.find(m => m.name === mtName);
+          if (mt) {
+            mtEntries.push({mtName: mtName, emoji: mt.emoji, rank: score.rank, time: score.time, diffScore: score.diffScore || 0});
+          }
+        }
+        // Sort: diffScore desc, then time asc
+        mtEntries.sort((a,b) => b.diffScore - a.diffScore || a.time - b.time);
+        if (mtEntries.length === 0) {
+          html += '<div style="font-size:12px;color:#999;padding:4px 0">暂无记录</div>';
+        } else {
+          html += '<table style="width:100%;border-collapse:collapse">';
+          html += '<tr style="border-bottom:1px solid #ddd;text-align:left"><th style="padding:4px;color:#8B7355;font-size:11px">山峰</th><th style="color:#8B7355;font-size:11px">评级</th><th style="color:#8B7355;font-size:11px">难度</th><th style="color:#8B7355;font-size:11px">用时</th></tr>';
+          mtEntries.forEach(e => {
+            const gc = gradeColors[e.rank] || '#999';
+            const mins = Math.floor(e.time / 60);
+            const secs = e.time % 60;
+            const timeStr = mins > 0 ? mins + '分' + secs + '秒' : secs + '秒';
+            const diffLabel = getDiffLabel(e.diffScore);
+            html += '<tr style="border-bottom:1px solid #eee">';
+            html += '<td style="padding:4px;font-size:12px">' + e.emoji + ' ' + e.mtName + '</td>';
+            html += '<td style="color:' + gc + ';font-weight:bold;font-size:12px">' + e.rank + '</td>';
+            html += '<td style="font-size:11px">' + diffLabel + '</td>';
+            html += '<td style="font-size:12px">' + timeStr + '</td>';
+            html += '</tr>';
+          });
+          html += '</table>';
+        }
+        html += '</div>';
+      });
+    }
+    
+    if (matchedMountains.length === 0 && matchedUsers.length === 0) {
+      html = '<div style="text-align:center;color:#999;padding:20px">未找到匹配的结果</div>';
+    }
+    
+    list.innerHTML = html;
+  }
 }
+
+// Add search input event listener
+document.getElementById('global-lb-search').oninput = function() {
+  renderGlobalLb(this.value);
+};
 
 
 // ===== Welcome Screen Events =====
