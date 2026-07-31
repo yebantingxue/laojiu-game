@@ -233,6 +233,9 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
 .guest-banner{width:100%;max-width:500px;background:linear-gradient(90deg,#FFF3E0,#FFE0B2);border:1.5px dashed #FF9800;border-radius:10px;padding:6px 12px;font-size:12px;color:#5D4037;text-align:center;margin-bottom:6px;display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap}
 .guest-banner a{color:#E65100;cursor:pointer;text-decoration:underline;font-weight:bold}
 .guest-banner a:hover{color:#BF360C}
+.user-banner{width:100%;max-width:500px;background:linear-gradient(90deg,#E8F5E9,#C8E6C9);border:1.5px solid #2E7D32;border-radius:10px;padding:6px 12px;font-size:12px;color:#2E7D32;text-align:center;margin-bottom:6px;display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap}
+.user-banner a{color:#1B5E20;cursor:pointer;text-decoration:underline;font-weight:bold}
+.user-banner a:hover{color:#0D3B0F}
 </style>
 </head>
 <body>
@@ -251,6 +254,7 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
   </div>
   <div id="title-screen" class="screen hidden">
     <div class="guest-banner hidden" id="guest-banner">👀 游客模式 · 数据仅保存在本设备 <a id="guest-banner-register">注册账号</a></div>
+    <div class="user-banner hidden" id="user-banner"></div>
     <div class="title">🪨 老舅推石头</div>
     <div class="subtitle">从家门口的小土坡到世界之巅<br>🏔️ 答题推石头上山，答错滚下来！</div>
     <button class="btn" id="btn-start">开始攀登</button>
@@ -5512,10 +5516,69 @@ savePlayerSave = function() {
 
 // --- Guest banner on title screen ---
 function updateGuestBanner() {
-  const banner = document.getElementById('guest-banner');
-  if (banner) {
-    banner.classList.toggle('hidden', !_isGuestMode);
+  const guestBanner = document.getElementById('guest-banner');
+  const userBanner = document.getElementById('user-banner');
+  if (guestBanner) guestBanner.classList.toggle('hidden', _isGuestMode || _cloudReady);
+  if (userBanner) {
+    const isLoggedIn = _cloudReady && _cloudUserId && !_isGuestMode;
+    userBanner.classList.toggle('hidden', !isLoggedIn);
+    if (isLoggedIn) {
+      const info = JSON.parse(localStorage.getItem('olduncle_cloud_user') || '{}');
+      userBanner.innerHTML = `☁️ 已登录：<b>${info.username || ''}</b> (${info.email || ''}) &nbsp; <a id="btn-change-pwd">修改密码</a> | <a id="btn-logout">退出登录</a>`;
+      document.getElementById('btn-change-pwd').onclick = changePassword;
+      document.getElementById('btn-logout').onclick = logoutCloud;
+    }
   }
+}
+
+async function changePassword() {
+  const result = await showPwdModal({
+    title: '🔑 修改密码',
+    subtitle: '请输入旧密码和新密码',
+    fields: [
+      {id: 'oldPwd', placeholder: '旧密码', type: 'password'},
+      {id: 'newPwd', placeholder: '新密码（至少6位）', type: 'password'},
+      {id: 'newPwd2', placeholder: '确认新密码', type: 'password'}
+    ],
+    confirmText: '修改密码',
+    onConfirm: async (inputs) => {
+      if (!inputs.oldPwd) return '请输入旧密码';
+      if (!inputs.newPwd || inputs.newPwd.length < 6) return '新密码至少6位';
+      if (inputs.newPwd !== inputs.newPwd2) return '两次新密码不一致';
+      try {
+        const sb = getSupabase();
+        const info = JSON.parse(localStorage.getItem('olduncle_cloud_user') || '{}');
+        const email = info.email || '';
+        if (!email) return '未找到登录邮箱，请重新登录';
+        // Verify old password
+        const { error: signInError } = await sb.auth.signInWithPassword({ email, password: inputs.oldPwd });
+        if (signInError) return '旧密码不正确';
+        // Update to new password
+        const { error: updateError } = await sb.auth.updateUser({ password: inputs.newPwd });
+        if (updateError) return '修改失败：' + updateError.message;
+        return true; // success
+      } catch (e) {
+        return '操作失败：' + e.message;
+      }
+    }
+  });
+  if (result) {
+    alert('✅ 密码修改成功！');
+  }
+}
+
+async function logoutCloud() {
+  if (!confirm('确定要退出登录吗？')) return;
+  try {
+    const sb = getSupabase();
+    if (sb) await sb.auth.signOut();
+  } catch (e) { /* ignore */ }
+  localStorage.removeItem('olduncle_cloud_user');
+  sessionStorage.removeItem(SESSION_LOGIN_KEY);
+  _cloudUserId = null;
+  _cloudUsername = null;
+  _cloudReady = false;
+  showWelcome();
 }
 
 
