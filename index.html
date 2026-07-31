@@ -9,7 +9,7 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#FDF5E6;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;font-family:"Comic Sans MS","楷体",cursive,sans-serif;overflow-x:hidden;padding:6px 0}
-#gc{width:100%;max-width:900px;position:relative}
+#gc{width:100%;max-width:900px;position:relative;min-height:100vh;min-height:100dvh}
 canvas{display:block;width:100%;height:auto;border-radius:8px}
 .screen{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;z-index:10;background:rgba(253,245,230,0.97);border-radius:8px;padding:10px 14px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .hidden{display:none!important}
@@ -129,19 +129,67 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
   .btn{padding:16px 40px;font-size:22px}
 }
 
+/* ===== Mobile layout optimization (<768px) ===== */
+@media(max-width:767px){
+  #gc{min-height:100vh;min-height:100dvh}
+  .screen{min-height:100vh;min-height:100dvh;position:relative;padding:12px 10px}
+  .title{font-size:30px;margin-bottom:12px}
+  .subtitle{font-size:14px;margin-bottom:18px}
+  .btn{padding:11px 28px;font-size:16px;margin:6px}
+  .mt-list{gap:8px 10px;margin:12px 0}
+  .mt-item{padding:12px 14px}
+  .mt-name{font-size:15px}
+  .mt-detail{font-size:12px}
+  .mt-icon{width:38px;height:38px;font-size:19px}
+  .mt-tier{font-size:14px;margin:14px 0 6px}
+  .welcome-logo{font-size:64px}
+  .welcome-title{font-size:38px}
+  .welcome-slogan{font-size:15px;margin-bottom:24px}
+  .welcome-btns .btn{font-size:18px;padding:13px 24px}
+  .config-section{padding:8px 10px;margin:8px 0}
+  .config-label{font-size:13px;margin-bottom:8px}
+  .config-opt{padding:8px 14px;font-size:13px}
+  .prop-card{padding:10px 6px;font-size:13px}
+  .prop-icon{font-size:26px}
+  .prop-name{font-size:13px}
+  .prop-count{font-size:12px}
+  .end-title{font-size:30px;margin:16px 0 8px}
+  .end-grade{font-size:48px;margin:10px 0}
+  .end-stats{font-size:14px;margin:8px 0}
+  .end-quote{font-size:15px;margin:8px 0 14px}
+  .ach-card{padding:14px 10px}
+  .ach-card-icon{font-size:34px}
+  .ach-card-name{font-size:13px}
+  .ach-card-desc{font-size:11px}
+  .cfg-sticky-btn .btn{font-size:17px;padding:12px 40px}
+  #q-text{font-size:17px;min-height:56px}
+  .opt-btn{font-size:14px;padding:12px 8px;min-height:50px}
+  #options{gap:8px}
+  .diff-display{font-size:14px;padding:8px;margin-top:8px}
+  .guest-banner,.user-banner{padding:8px 14px;font-size:13px;margin-bottom:10px}
+  /* Spacing for title screen buttons */
+  #title-screen .btn{margin:5px 4px}
+  /* Mountain select header */
+  #mt-screen > div:first-of-type{margin-top:16px!important;font-size:22px!important}
+  #mt-screen > div:nth-of-type(2){margin-bottom:10px!important;font-size:14px!important}
+}
 @media(max-width:400px){
   .ach-wall-grid{grid-template-columns:1fr 1fr}
   .title{font-size:24px}
   .btn{padding:8px 20px;font-size:15px}
   .opt-btn{font-size:12px;padding:7px 4px}
-  .mt-item{padding:5px 6px}
-  .mt-name{font-size:12px}
-  .mt-detail{font-size:9px}
+  .mt-item{padding:8px 10px}
+  .mt-name{font-size:13px}
+  .mt-detail{font-size:10px}
   .props-grid{grid-template-columns:repeat(3,1fr);gap:3px}
   .config-opt{padding:4px 8px;font-size:10px}
   .config-label{font-size:11px}
-  .config-section{padding:5px 6px;margin:3px 0}
-  .mt-list{gap:3px 4px}
+  .config-section{padding:5px 6px;margin:4px 0}
+  .mt-list{gap:5px 6px}
+  .welcome-logo{font-size:52px}
+  .welcome-title{font-size:30px}
+  .welcome-slogan{font-size:13px;margin-bottom:16px}
+  .welcome-btns .btn{font-size:16px;padding:10px 20px}
 }
 @media(max-width:350px){
   .mt-list{grid-template-columns:1fr}
@@ -301,6 +349,7 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
     <button class="btn btn-outline" id="btn-global-lb" style="font-size:14px;padding:8px 20px">🏆 全球排行</button>
     <button class="btn btn-outline" id="btn-feedback-stats" style="font-size:14px;padding:8px 20px">📊 题库反馈</button>
     <button class="btn btn-outline" id="btn-import-qbank" style="font-size:14px;padding:8px 20px">📚 导入题库</button>
+    <button class="btn btn-outline" id="btn-download-template" style="font-size:14px;padding:8px 20px">📥 下载模板</button>
     <button class="btn btn-outline" id="btn-clear-qbank" style="font-size:14px;padding:8px 20px">🗑️ 清除题库</button>
     <input type="file" id="file-import-qbank" accept=".xlsx,.xls,.csv" style="display:none">
     <div style="margin-top:12px;font-size:12px;color:#aaa">累计答对 <span id="total-correct-display">0</span> 题 | 已征服 <span id="total-mt-display">0</span> 座山</div>
@@ -5152,6 +5201,51 @@ function importQuestionBank(file) {
   reader.readAsArrayBuffer(file);
 }
 
+// ============ DOWNLOAD QUESTION BANK TEMPLATE ============
+function downloadTemplate() {
+  try {
+    // Define template data
+    const header = ['题目', '选项A', '选项B', '选项C', '选项D', '正确答案', '分类', '难度'];
+    const noteRow = ['【说明】正确答案填1-4的数字（1=A,2=B,3=C,4=D）；分类填 history/science/geography/art/sports/tech/life/literature/ent/自定义；难度填1(容易)/2(普通)/3(困难)', '', '', '', '', '', '', ''];
+    const example1 = ['中国的首都是哪里？', '上海', '北京', '广州', '深圳', 2, 'geography', 1];
+    const example2 = ['光在真空中的速度约为多少千米每秒？', '10万', '20万', '30万', '40万', 3, 'science', 2];
+    const example3 = ['《蒙娜丽莎》的作者是谁？', '拉斐尔', '达·芬奇', '米开朗基罗', '莫奈', 2, 'art', 3];
+
+    const wsData = [header, noteRow, example1, example2, example3];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // Set column widths for better readability
+    ws['!cols'] = [
+      {wch: 40}, // 题目
+      {wch: 16}, // 选项A
+      {wch: 16}, // 选项B
+      {wch: 16}, // 选项C
+      {wch: 16}, // 选项D
+      {wch: 10}, // 正确答案
+      {wch: 16}, // 分类
+      {wch: 8}   // 难度
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '题库模板');
+
+    // Generate xlsx file and trigger download
+    const wbout = XLSX.write(wb, {bookType: 'xlsx', type: 'array'});
+    const blob = new Blob([wbout], {type: 'application/octet-stream'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '老舅推石头_题库模板.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showDmToast('📥 模板已下载！按格式填写后导入即可');
+  } catch(err) {
+    showDmToast('❌ 模板下载失败：' + err.message);
+  }
+}
+
 // ============ LEADERBOARD (Module B) ============
 function getRankData() {
   try { return JSON.parse(localStorage.getItem(RANK_DATA_KEY)) || {}; } catch(e) { return {}; }
@@ -5322,11 +5416,12 @@ document.getElementById('btn-back-feedback').onclick=()=>renderTitle();
 document.getElementById('btn-cfg-save').onclick=()=>saveCurrentConfig();
 document.getElementById('feedback-mark-btn').onclick=()=>showFeedbackPopup();
 
-// ===== Custom Question Bank Import/Clear =====
+// ===== Custom Question Bank Import/Clear/Template =====
 document.getElementById('btn-import-qbank').onclick=()=>document.getElementById('file-import-qbank').click();
 document.getElementById('file-import-qbank').onchange=function(e){
   if(e.target.files.length>0){importQuestionBank(e.target.files[0]);e.target.value=''}
 };
+document.getElementById('btn-download-template').onclick=()=>downloadTemplate();
 document.getElementById('btn-clear-qbank').onclick=()=>{
   const qs=getCustomQuestions();
   if(qs.length===0){showDmToast('⚠️ 没有自定义题库可清除');return;}
