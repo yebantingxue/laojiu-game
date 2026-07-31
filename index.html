@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>老舅推石头</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#FDF5E6;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;font-family:"Comic Sans MS","楷体",cursive,sans-serif;overflow-x:hidden;padding:6px 0}
@@ -257,14 +258,10 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
     <button class="btn btn-outline" id="btn-ach-wall" style="font-size:14px;padding:8px 20px">🏆 成就墙</button>
     <button class="btn btn-outline" id="btn-leaderboard" style="font-size:14px;padding:8px 20px">🏅 排行榜</button>
     <button class="btn btn-outline" id="btn-global-lb" style="font-size:14px;padding:8px 20px">🏆 全球排行</button>
-    <button class="btn btn-outline" id="btn-data-mgmt" style="font-size:14px;padding:8px 20px">⚙️ 数据管理</button>
     <button class="btn btn-outline" id="btn-feedback-stats" style="font-size:14px;padding:8px 20px">📊 题库反馈</button>
-    <div class="title-player">
-      <span>👤 玩家：</span>
-      <select id="title-player-select"></select>
-      <input id="title-player-new" placeholder="新昵称" maxlength="12">
-      <button class="lb-player-add" id="btn-add-player" style="font-size:11px;padding:4px 10px">添加</button>
-    </div>
+    <button class="btn btn-outline" id="btn-import-qbank" style="font-size:14px;padding:8px 20px">📚 导入题库</button>
+    <button class="btn btn-outline" id="btn-clear-qbank" style="font-size:14px;padding:8px 20px">🗑️ 清除题库</button>
+    <input type="file" id="file-import-qbank" accept=".xlsx,.xls,.csv" style="display:none">
     <div style="margin-top:12px;font-size:12px;color:#aaa">累计答对 <span id="total-correct-display">0</span> 题 | 已征服 <span id="total-mt-display">0</span> 座山</div>
   </div>
   <div id="mt-screen" class="screen hidden">
@@ -295,6 +292,11 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
         <div class="config-label">🎯 题目难度 <span style="font-weight:normal;font-size:10px;color:#8B7355">(单选，默认普通)</span></div>
         <div class="config-opts" id="cfg-qdiff"></div>
         <div id="qdiff-summary" style="font-size:11px;color:#8B7355;margin-top:4px;width:100%"></div>
+      </div>
+      <div class="config-section">
+        <div class="config-label">📦 题目来源</div>
+        <div class="config-opts" id="cfg-qsource"></div>
+        <div id="qsource-summary" style="font-size:11px;color:#8B7355;margin-top:4px;width:100%"></div>
       </div>
       <div class="config-section">
         <div class="config-label">🎒 道具(最多3个)</div>
@@ -354,20 +356,6 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
     <div style="height:12px"></div>
   </div>
   <div id="frozen-overlay" class="frozen-overlay hidden"></div>
-  <!-- Data Management Modal -->
-  <div id="data-mgmt-overlay" class="dm-overlay hidden">
-    <div class="dm-modal" style="position:relative">
-      <button class="dm-close" id="btn-dm-close">✕</button>
-      <div class="dm-modal-title">⚙️ 数据管理</div>
-      <div class="dm-summary" id="dm-summary"></div>
-      <div class="dm-actions">
-        <button class="dm-btn" id="btn-change-pwd" style="background:#9C27B0">🔑 修改密码</button>
-        <button class="dm-btn" id="btn-export-data">📤 导出存档</button>
-        <button class="dm-btn dm-btn-outline" id="btn-import-data">📥 导入存档</button>
-        <button class="dm-btn dm-btn-danger" id="btn-clear-data">🗑️ 清除存档</button>
-      </div>
-    </div>
-  </div>
   <!-- Leaderboard Screen -->
   <div id="lb-screen" class="screen hidden">
     <button class="back-btn" id="btn-back-lb">←</button>
@@ -376,7 +364,6 @@ canvas{display:block;width:100%;height:auto;border-radius:8px}
     <div id="lb-table-container" style="width:100%;overflow-x:auto"></div>
     <div style="height:16px"></div>
   </div>
-  <input type="file" id="file-import-input" accept=".json" style="display:none">
   <!-- Global Leaderboard Screen -->
   <div id="global-lb-screen" class="screen hidden">
     <button class="back-btn" id="btn-back-global-lb">←</button>
@@ -3523,6 +3510,7 @@ let currentMt=null;
 let cfgStep=100, cfgTime=15, cfgPenalty=1;
 let cfgCategories=["geo","history","life","science","literature","ent"]; // all 6 selected by default
 let cfgDiffs="medium"; // default to 普通 (single-select radio)
+let cfgQSource="builtin"; // builtin / custom / mixed
 let selectedProps=[];
 let propUses={};
 let progress=0, totalSteps=0;
@@ -3625,56 +3613,101 @@ function getFilteredPool(){
   });
 }
 
+function getCustomQuestions(){
+  try{ return JSON.parse(localStorage.getItem('custom_questions'))||[]; }catch(e){ return []; }
+}
+
 function buildQuestionPool(){
   // Build filtered pool and pick questions, avoiding repeats within a session
   usedQuestionIndices = new Set();
   const diffNums=cfgDiffsToNumbers();
   const needed = totalSteps + 20; // some buffer
+  const customQs = getCustomQuestions();
   
-  // First try: get from filtered pool, excluding already used
-  let filtered = [];
+  // Determine which question banks to use
+  let useBuiltin = true;
+  let useCustom = false;
+  if(cfgQSource==='custom'){
+    if(customQs.length>0){ useBuiltin=false; useCustom=true; }
+    else{ useBuiltin=true; useCustom=false; } // fallback
+  }else if(cfgQSource==='mixed'){
+    if(customQs.length>0){ useBuiltin=true; useCustom=true; }
+    else{ useBuiltin=true; useCustom=false; } // fallback
+  }
+  // cfgQSource==='builtin' => default, useBuiltin=true, useCustom=false
+
+  // Build the combined pool
+  let combinedPool = []; // {q: questionObj, src: 'builtin'|'custom'}
+  
+  // Filter builtin questions
+  let builtinFiltered = [];
   for(let i=0; i<QUESTION_BANK.length; i++){
     const q = QUESTION_BANK[i];
-    if(cfgCategories.includes(q.cat) && diffNums.includes(q.diff) && !usedQuestionIndices.has(i)){
-      filtered.push(i);
+    if(cfgCategories.includes(q.cat) && diffNums.includes(q.diff)){
+      builtinFiltered.push({q:q, src:'builtin'});
     }
   }
   
-  // Shuffle filtered indices
-  filtered = shuffleArray(filtered);
+  // Filter custom questions (apply difficulty filter, category filter based on custom cat)
+  let customFiltered = [];
+  for(let i=0; i<customQs.length; i++){
+    const q = customQs[i];
+    // Apply difficulty filter if diff is set
+    if(q.diff && !diffNums.includes(q.diff)) continue;
+    // For custom questions, skip category filter since they may not match built-in categories
+    customFiltered.push({q:q, src:'custom'});
+  }
+  
+  if(useBuiltin && useCustom){
+    // Mixed: 50% builtin + 50% custom
+    builtinFiltered = shuffleArray(builtinFiltered);
+    customFiltered = shuffleArray(customFiltered);
+    const halfNeeded = Math.ceil(needed / 2);
+    const builtinPick = builtinFiltered.slice(0, halfNeeded);
+    const customPick = customFiltered.slice(0, halfNeeded);
+    combinedPool = builtinPick.concat(customPick);
+    combinedPool = shuffleArray(combinedPool);
+  }else if(useCustom && !useBuiltin){
+    customFiltered = shuffleArray(customFiltered);
+    combinedPool = customFiltered;
+  }else{
+    builtinFiltered = shuffleArray(builtinFiltered);
+    combinedPool = builtinFiltered;
+  }
   
   // Pick what we need
-  let selected = filtered.slice(0, needed);
-  selected.forEach(idx => usedQuestionIndices.add(idx));
+  let selected = combinedPool.slice(0, needed);
   
-  // If not enough from filtered pool, supplement from ALL unused questions
+  // If not enough, supplement from all available
   if(selected.length < needed){
-    let allUnused = [];
-    for(let i=0; i<QUESTION_BANK.length; i++){
-      if(!usedQuestionIndices.has(i)){
-        allUnused.push(i);
+    let allAvailable = [];
+    if(useBuiltin){
+      for(let i=0; i<QUESTION_BANK.length; i++){
+        allAvailable.push({q:QUESTION_BANK[i], src:'builtin'});
       }
     }
-    allUnused = shuffleArray(allUnused);
-    const extra = allUnused.slice(0, needed - selected.length);
-    extra.forEach(idx => usedQuestionIndices.add(idx));
+    if(useCustom){
+      for(let i=0; i<customQs.length; i++){
+        allAvailable.push({q:customQs[i], src:'custom'});
+      }
+    }
+    allAvailable = shuffleArray(allAvailable);
+    const extra = allAvailable.slice(0, needed - selected.length);
     selected = selected.concat(extra);
   }
   
-  // If still not enough (unlikely with 3000 questions), just reuse all
+  // If still not enough, just repeat
   if(selected.length < needed){
-    let all = [];
-    for(let i=0; i<QUESTION_BANK.length; i++) all.push(i);
-    all = shuffleArray(all);
     while(selected.length < needed){
-      selected = selected.concat(all);
+      selected = selected.concat(selected);
     }
+    selected = selected.slice(0, needed);
   }
   
   // Final shuffle
   selected = shuffleArray(selected);
   
-  return selected.map(idx => QUESTION_BANK[idx]);
+  return selected.map(item => item.q);
 }
 
 // ============ DRAWING ============
@@ -4017,6 +4050,31 @@ function renderConfig(){
   const diffSummary=document.getElementById('qdiff-summary');
   const selDiff=DIFF_OPTS.find(d=>d.val===cfgDiffs);
   diffSummary.textContent='当前: '+(selDiff?selDiff.label:'普通');
+
+  // Question source selection (single-select)
+  const qsrcDiv=document.getElementById('cfg-qsource');
+  qsrcDiv.innerHTML='';
+  const QSOURCES=[{label:"内置题库",val:"builtin"},{label:"自定义题库",val:"custom"},{label:"混合(50%+50%)",val:"mixed"}];
+  const customQs=getCustomQuestions();
+  QSOURCES.forEach(s=>{
+    const isSel=cfgQSource===s.val;
+    const btn=document.createElement('div');
+    btn.className='config-opt'+(isSel?' sel':'');
+    btn.textContent=s.label+(s.val==='custom'||s.val==='mixed'?' ('+customQs.length+'题)':'');
+    btn.onclick=()=>{
+      cfgQSource=s.val;
+      renderConfig();
+    };
+    qsrcDiv.appendChild(btn);
+  });
+  const qsrcSummary=document.getElementById('qsource-summary');
+  if(cfgQSource==='builtin'){
+    qsrcSummary.textContent='当前: 仅使用内置题库';
+  }else if(cfgQSource==='custom'){
+    qsrcSummary.textContent=customQs.length>0?'当前: 仅使用自定义题库 ('+customQs.length+'题)':'⚠️ 自定义题库为空，将降级为内置题库';
+  }else{
+    qsrcSummary.textContent=customQs.length>0?'当前: 50%内置 + 50%自定义 ('+customQs.length+'题)':'⚠️ 自定义题库为空，将全部使用内置题库';
+  }
 
   // Props
   const propsDiv=document.getElementById('cfg-props');
@@ -4779,13 +4837,7 @@ window._origSave = save;
 save = function() { savePlayerSave(); };
 
 function refreshPlayerSelectors() {
-  const players = getPlayerList();
-  const active = getActivePlayer();
-  // Title screen selector
-  const titleSel = document.getElementById('title-player-select');
-  if (titleSel) {
-    titleSel.innerHTML = players.map(p => `<option value="${p.name}" ${p.name===active?'selected':''}>${p.name}</option>`).join('');
-  }
+  // Title screen selector removed - no DOM update needed
 }
 
 // --- Password Modal System ---
@@ -4978,91 +5030,6 @@ async function addPlayer(name, skipLogin) {
   return true;
 }
 
-// --- Change password flow ---
-async function changePassword() {
-  const active = getActivePlayer();
-  const info = getPlayerInfo(active);
-  if (!info) return;
-  if (!info.pwdHash) {
-    // Legacy player without password, set one
-    const result = await showPwdModal({
-      title: '🔐 设置密码',
-      subtitle: `当前玩家「${active}」尚未设置密码`,
-      fields: [
-        {id: 'pwd', placeholder: '设置密码（至少4位）', type: 'password'},
-        {id: 'pwd2', placeholder: '确认密码', type: 'password'}
-      ],
-      confirmText: '设置密码',
-      onConfirm: async (inputs) => {
-        if (!inputs.pwd || inputs.pwd.length < 4) return '密码至少4位';
-        if (inputs.pwd !== inputs.pwd2) return '两次密码不一致';
-        const h = await hashPassword(inputs.pwd);
-        updatePlayerHash(active, h);
-        return true;
-      }
-    });
-    if (result) showDmToast('✅ 密码设置成功！');
-    return;
-  }
-  const result = await showPwdModal({
-    title: '🔑 修改密码',
-    subtitle: `为玩家「${active}」修改密码`,
-    fields: [
-      {id: 'old', placeholder: '输入旧密码', type: 'password'},
-      {id: 'new1', placeholder: '新密码（至少4位）', type: 'password'},
-      {id: 'new2', placeholder: '确认新密码', type: 'password'}
-    ],
-    confirmText: '修改密码',
-    onConfirm: async (inputs) => {
-      if (!inputs.old) return '请输入旧密码';
-      const oldHash = await hashPassword(inputs.old);
-      const playerInfo = getPlayerInfo(active);
-      if (oldHash !== playerInfo.pwdHash) return '旧密码错误';
-      if (!inputs.new1 || inputs.new1.length < 4) return '新密码至少4位';
-      if (inputs.new1 !== inputs.new2) return '两次新密码不一致';
-      const newHash = await hashPassword(inputs.new1);
-      updatePlayerHash(active, newHash);
-      return true;
-    }
-  });
-  if (result) showDmToast('✅ 密码修改成功！');
-}
-
-// ============ DATA MANAGEMENT (Module A) ============
-function showDataMgmtModal() {
-  const overlay = document.getElementById('data-mgmt-overlay');
-  overlay.classList.remove('hidden');
-  // Fill summary
-  const clearedCount = Object.keys(saveData.cleared).length;
-  const achCount = saveData.achievements ? saveData.achievements.length : 0;
-  const totalCorrect = saveData.totalCorrect || 0;
-  const totalWrong = saveData.totalWrong || 0;
-  const maxCombo = saveData.maxComboAll || 0;
-  const player = getActivePlayer();
-  // Count synced data items
-  let fbCount = 0, cfgCount = 0, rankPlayerCount = 0;
-  try { const fb = JSON.parse(localStorage.getItem('olduncle_feedback')||'{}'); fbCount = Object.keys(fb).length; } catch(e){}
-  try { const cfg = JSON.parse(localStorage.getItem('olduncle_configs')||'{}'); cfgCount = Object.keys(cfg).length; } catch(e){}
-  try { const rk = JSON.parse(localStorage.getItem(RANK_DATA_KEY)||'{}'); rankPlayerCount = Object.keys(rk).length; } catch(e){}
-  const syncStatus = _cloudReady ? '☁️ 已连接' : (_isGuestMode ? '🎮 游客模式' : '📴 离线');
-  document.getElementById('dm-summary').innerHTML =
-    `👤 当前玩家：<span>${player}</span><br>` +
-    `🔄 同步状态：<span>${syncStatus}</span><br>` +
-    `⛰️ 已通关：<span>${clearedCount}</span> 座山<br>` +
-    `✅ 累计答对：<span>${totalCorrect}</span> 题<br>` +
-    `❌ 累计答错：<span>${totalWrong}</span> 题<br>` +
-    `🔥 最高连击：<span>${maxCombo}</span> 次<br>` +
-    `🏆 已解锁成就：<span>${achCount}</span>/10<br>` +
-    `📊 排行榜：<span>${rankPlayerCount}</span> 位玩家<br>` +
-    `🚩 题目反馈：<span>${fbCount}</span> 条<br>` +
-    `⚙️ 已存配置：<span>${cfgCount}</span> 个` +
-    `<br>🔑 密码保护：<span>${getPlayerInfo(player)?.pwdHash ? '已设置' : '未设置'}</span>`;
-}
-
-function closeDataMgmtModal() {
-  document.getElementById('data-mgmt-overlay').classList.add('hidden');
-}
-
 function showDmToast(msg, duration) {
   const t = document.createElement('div');
   t.className = 'dm-toast';
@@ -5071,92 +5038,77 @@ function showDmToast(msg, duration) {
   setTimeout(() => { if(t.parentNode) t.parentNode.removeChild(t); }, duration || 2000);
 }
 
-function exportSaveData() {
-  // Export full payload including all synced data
-  const fullPayload = buildCloudPayload();
-  const exportObj = {
-    version: "2.0",
-    player: getActivePlayer(),
-    exportDate: new Date().toISOString(),
-    data: saveData,
-    fullPayload: fullPayload
-  };
-  const json = JSON.stringify(exportObj, null, 2);
-  const blob = new Blob([json], {type: 'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = '老舅推石头_存档.json';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showDmToast('✅ 存档已导出！');
-}
-
-function importSaveData(file) {
+// ============ CUSTOM QUESTION BANK IMPORT ============
+function importQuestionBank(file) {
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
-      const obj = JSON.parse(e.target.result);
-      if (!obj.version || !obj.data) {
-        alert('❌ 文件格式不正确：缺少 version 或 data 字段');
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, {type:'array'});
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, {header:1});
+      
+      if(rows.length < 2) {
+        showDmToast('❌ 文件为空或没有数据行');
         return;
       }
-      const d = obj.data;
-      // Validate required fields
-      if (typeof d.cleared !== 'object' || typeof d.bestScores !== 'object') {
-        alert('❌ 文件格式不正确：缺少必要的存档字段');
-        return;
-      }
-      // If full payload exists, restore all data
-      if (obj.fullPayload && obj.version === "2.0") {
-        applyCloudPayload(obj.fullPayload);
-      }
-      // Merge or replace current player data
-      const targetPlayer = obj.player && obj.player !== getActivePlayer()
-        ? obj.player + '(导入)'
-        : getActivePlayer();
-      // If imported from a different player, add to player list
-      if (obj.player && obj.player !== getActivePlayer()) {
-        let players = getPlayerList();
-        if (!players.find(p => p.name === targetPlayer)) {
-          players.push({name: targetPlayer, pwdHash: ''});
-          setPlayerList(players);
+      
+      const existing = getCustomQuestions();
+      let successCount = 0;
+      let failCount = 0;
+      
+      // Skip header row (row 0), process from row 1
+      for(let i=1; i<rows.length; i++) {
+        const row = rows[i];
+        if(!row || !row[0]) continue; // skip empty rows
+        
+        const question = String(row[0] || '').trim();
+        const optA = String(row[1] || '').trim();
+        const optB = String(row[2] || '').trim();
+        const optC = String(row[3] || '').trim();
+        const optD = String(row[4] || '').trim();
+        const ansRaw = parseInt(row[5]);
+        const cat = String(row[6] || '').trim() || '自定义';
+        const diffRaw = parseInt(row[7]);
+        
+        // Validate: must have question and at least 2 options and valid answer
+        if(!question || !optA || !optB) {
+          failCount++;
+          continue;
         }
-        localStorage.setItem(getSaveKey(targetPlayer), JSON.stringify(d));
-        setActivePlayer(targetPlayer);
-        saveData = loadPlayerSave();
-      } else {
-        Object.assign(saveData, d);
-        save();
+        
+        const opts = [optA, optB];
+        if(optC) opts.push(optC);
+        if(optD) opts.push(optD);
+        
+        // Answer: 1-4 → 0-3, must be valid index
+        if(isNaN(ansRaw) || ansRaw < 1 || ansRaw > opts.length) {
+          failCount++;
+          continue;
+        }
+        const ans = ansRaw - 1; // convert to 0-based
+        
+        const diff = (diffRaw >= 1 && diffRaw <= 4) ? diffRaw : 2;
+        
+        existing.push({
+          q: question,
+          opts: opts,
+          ans: ans,
+          cat: cat,
+          diff: diff,
+          src: '自定义题库'
+        });
+        successCount++;
       }
-      refreshPlayerSelectors();
-      renderTitle();
-      showDataMgmtModal(); // refresh summary
-      showDmToast('✅ 存档导入成功！');
+      
+      localStorage.setItem('custom_questions', JSON.stringify(existing));
+      showDmToast('✅ 成功导入 ' + successCount + ' 题' + (failCount > 0 ? '，失败 ' + failCount + ' 题' : ''));
     } catch(err) {
-      alert('❌ 文件解析失败：' + err.message);
+      showDmToast('❌ 文件解析失败：' + err.message);
     }
   };
-  reader.readAsText(file);
-}
-
-function clearSaveData() {
-  if (!confirm('⚠️ 确定要清除当前玩家「' + getActivePlayer() + '」的所有存档数据吗？\n此操作不可恢复！')) return;
-  if (!confirm('⚠️ 再次确认：真的要清除「' + getActivePlayer() + '」的全部数据？')) return;
-  localStorage.removeItem(getSaveKey(getActivePlayer()));
-  // Also clear synced data from localStorage
-  localStorage.removeItem(RANK_DATA_KEY);
-  localStorage.removeItem('olduncle_feedback');
-  localStorage.removeItem('olduncle_configs');
-  saveData = {cleared:{},bestScores:{},totalCorrect:0,totalWrong:0,maxComboAll:0,settings:{},achievements:[],achDates:{}};
-  save();
-  // Sync empty state to cloud
-  immediateCloudSave();
-  renderTitle();
-  showDataMgmtModal();
-  showDmToast('🗑️ 存档已清除（含云端）');
+  reader.readAsArrayBuffer(file);
 }
 
 // ============ LEADERBOARD (Module B) ============
@@ -5329,25 +5281,17 @@ document.getElementById('btn-back-feedback').onclick=()=>renderTitle();
 document.getElementById('btn-cfg-save').onclick=()=>saveCurrentConfig();
 document.getElementById('feedback-mark-btn').onclick=()=>showFeedbackPopup();
 
-// ===== Data Management Event Listeners =====
-document.getElementById('btn-data-mgmt').onclick=()=>showDataMgmtModal();
-document.getElementById('btn-dm-close').onclick=()=>closeDataMgmtModal();
-document.getElementById('data-mgmt-overlay').onclick=function(e){if(e.target===this)closeDataMgmtModal()};
-document.getElementById('btn-export-data').onclick=()=>exportSaveData();
-document.getElementById('btn-import-data').onclick=()=>document.getElementById('file-import-input').click();
-document.getElementById('file-import-input').onchange=function(e){if(e.target.files.length>0){importSaveData(e.target.files[0]);e.target.value=''}};
-document.getElementById('btn-clear-data').onclick=()=>clearSaveData();
-document.getElementById('btn-change-pwd').onclick=()=>changePassword();
-
-// ===== Player Selector on Title =====
-document.getElementById('title-player-select').onchange=function(){const v=this.value;const active=getActivePlayer();if(v!==active){loginPlayer(v).then(ok=>{if(!ok){document.getElementById('title-player-select').value=active;}});}};
-document.getElementById('btn-add-player').onclick=function(){
-  const input=document.getElementById('title-player-new');
-  const name=input.value.trim();
-  if(name){addPlayer(name).then(()=>{input.value=''});}
+// ===== Custom Question Bank Import/Clear =====
+document.getElementById('btn-import-qbank').onclick=()=>document.getElementById('file-import-qbank').click();
+document.getElementById('file-import-qbank').onchange=function(e){
+  if(e.target.files.length>0){importQuestionBank(e.target.files[0]);e.target.value=''}
 };
-document.getElementById('title-player-new').onkeydown=function(e){
-  if(e.key==='Enter'){document.getElementById('btn-add-player').click()}
+document.getElementById('btn-clear-qbank').onclick=()=>{
+  const qs=getCustomQuestions();
+  if(qs.length===0){showDmToast('⚠️ 没有自定义题库可清除');return;}
+  if(!confirm('⚠️ 确定要清除全部 '+qs.length+' 道自定义题目吗？')) return;
+  localStorage.removeItem('custom_questions');
+  showDmToast('🗑️ 自定义题库已清除');
 };
 
 // ===== Leaderboard Event Listeners =====
